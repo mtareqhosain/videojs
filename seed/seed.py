@@ -52,5 +52,4 @@ if __name__ == "__main__":
             ingest_file(path)
             log.info(f"Ingested {file_name}")
         except Exception as e:
-            log.error(f"Error downloading {file_name}: {e}")
-            sys.exit(1)
+            log.error(f"Error {file_name}: {e}")

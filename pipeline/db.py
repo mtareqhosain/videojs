@@ -1,18 +1,29 @@
 import os
 import psycopg2
 import logging
+import time
 
 log = logging.getLogger(__name__)
 
 # Database connection
-def get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        port=os.environ.get("DB_PORT", 5432),
-        dbname=os.environ.get("DB_NAME", "gharchive"),
-        user=os.environ.get("DB_USER", "postgres"),
-        password=os.environ.get("DB_PASSWORD", "postgres"),
-    )
+import time
+
+def get_connection(retries=3, delay=2):
+    for attempt in range(retries):
+        try:
+            return psycopg2.connect(
+                host=os.environ.get("DB_HOST", "localhost"),
+                port=os.environ.get("DB_PORT", 5432),
+                dbname=os.environ.get("DB_NAME", "gharchive"),
+                user=os.environ.get("DB_USER", "postgres"),
+                password=os.environ.get("DB_PASSWORD", "postgres"),
+            )
+        except psycopg2.OperationalError as e:
+            if attempt < retries - 1:
+                log.warning(f"Connection failed, retrying in {delay}s: {e}")
+                time.sleep(delay)
+            else:
+                raise
 
 # Create tables
 def create_tables():

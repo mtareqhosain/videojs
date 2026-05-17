@@ -5,6 +5,9 @@ import os
 
 from datetime import datetime, timezone
 from pipeline.db import get_connection
+import json
+
+from psycopg2.extras import Json
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +52,21 @@ def is_already_loaded(filename):
 
     return result is not None
 
+def _scrub_nulls(obj):
+    if isinstance(obj, dict):
+        return {k: _scrub_nulls(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_scrub_nulls(v) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace("\u0000", "")
+    return obj
+
+def clean_payload(payload):
+    cleaned = _scrub_nulls(payload or {})
+    # optional: prove it's valid JSON before insert
+    json.loads(json.dumps(cleaned))
+    return Json(cleaned)
+
 
 def ingest_file(filepath):
     filename = os.path.basename(filepath)
@@ -84,12 +102,13 @@ def ingest_file(filepath):
                         event.get("actor", {}).get("login"),
                         event.get("repo", {}).get("name"),
                         event.get("created_at"),
-                        json.dumps(event.get("payload", {})),
+                        clean_payload(event.get("payload", {})),
                         filename
                     ))
                     row_count += 1
-                except json.JSONDecodeError as e:
-                    log.warning(f"Skipping malformed JSON line in {filename}: {e}")
+                except Exception as e:
+                    log.warning(f"Skipping row in {filename}: {e}")
+                    conn.rollback()
                     continue
         
         conn.commit()

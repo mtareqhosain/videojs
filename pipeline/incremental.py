@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pipeline.db import get_connection
 
 log = logging.getLogger(__name__)

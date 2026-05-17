@@ -29,5 +29,20 @@ services:
       postgres:
         condition: service_healthy
 
+  scheduler:
+    build: ./scheduler
+    volumes:
+      - ./pipeline:/app/pipeline
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: gharchive
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      PIPELINE_WORKERS: 4
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:

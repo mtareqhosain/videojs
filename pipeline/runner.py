@@ -1,13 +1,12 @@
 import logging
 import os
-import sys
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import requests
 
-from pipeline.db import create_tables, get_connection
+from pipeline.db import create_tables
 from pipeline.incremental import get_pending_files
 from pipeline.ingest import ingest_file
 

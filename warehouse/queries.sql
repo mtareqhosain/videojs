@@ -1,17 +1,8 @@
--- Query 1: Hourly event count with running total per repository
--- Business question: For the 20 most active repositories overall, how did
--- their event count accumulate hour-by-hour across the 3-day window?
---
--- The rubric is: "top 20 repositories by total event count, showing for each
--- row: repository name, hour, events in that hour, and running total".
--- That means we first pick the top-20 repos by TOTAL events, then return
--- every hourly row for those repos with a running cumulative total.
--- A naive "ORDER BY running_total DESC LIMIT 20" would just return 20
--- (repo, hour) rows, typically all from the single biggest repo.
--- Written: 2026-05-18.
+-- Query 1: Hourly event count with running total per repository.
+-- Business question: for the 20 most active repositories overall, how
+-- did their event count accumulate hour-by-hour across the window?
 
 WITH top_repos AS (
-    -- Pick the 20 most active repositories across the whole window first.
     SELECT repo_id
     FROM fact_events
     GROUP BY repo_id
@@ -59,15 +50,10 @@ FROM (
 GROUP BY tier
 ORDER BY user_count DESC;
 
--- Query 3: Pull request merge rate by organisation
--- Business question: Which organisations are most effective at merging
+-- Query 3: Pull request merge rate by organisation.
+-- Business question: which organisations are most effective at merging
 -- pull requests vs leaving them closed unmerged?
---
--- Uses the denormalised fact_events.org_name column (see schema.sql) so
--- this query no longer needs to join dim_repos just to read org_name.
--- That removes the nested-loop lookup and the sort key resolution that
--- dominated the original plan.
--- Written: 2026-05-18.
+-- Reads org_name directly from fact_events (denormalised) — see DESIGN.md.
 
 SELECT
     f.org_name,
@@ -86,18 +72,5 @@ ORDER BY merge_rate_pct DESC
 LIMIT 20;
 
 
--- Query Optimisation Notes (Query 3):
--- Before: Query 3 joined dim_repos solely to read org_name, then sorted
--- ~33k PullRequestEvent rows by org_name before grouping. The dominant
--- costs in the EXPLAIN were the Nested Loop into dim_repos and the
--- 3.2 MB quicksort on r.org_name.
---
--- Change: Denormalised org_name onto fact_events (warehouse/schema.sql)
--- and dropped the dim_repos join from the query. A partial index
--- idx_fact_org_pr ON fact_events(org_name) WHERE pr_action IS NOT NULL
--- supports the post-filter group-by.
---
--- After: The plan no longer contains the Nested Loop on dim_repos, and
--- the GroupAggregate runs directly over the fact-table rows already
--- carrying org_name. See explain_before.txt vs explain_after.txt for
--- the side-by-side plans.
+-- Query 3 optimisation: full write-up in warehouse/DESIGN.md.
+-- See explain_before.txt and explain_after.txt for the EXPLAIN plans.

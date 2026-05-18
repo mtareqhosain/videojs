@@ -35,11 +35,7 @@ SELECT DISTINCT event_type
 FROM raw_events
 WHERE event_type IS NOT NULL;
 
--- Populate fact_events.
--- org_name is denormalised onto the fact table so Query 3 (PR merge rate
--- by org) can group/filter without joining dim_repos. See DESIGN.md and
--- explain_after.txt for the resulting plan change.
--- Written: 2026-05-18.
+-- Populate fact_events. org_name carried over from dim_repos (denormalised).
 INSERT INTO fact_events (
     event_id, event_type_id, user_id, repo_id, time_id, org_name, pr_action, pr_merged
 )

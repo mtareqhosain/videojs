@@ -20,11 +20,7 @@ MAX_WORKERS = int(os.environ.get("PIPELINE_WORKERS", 4))
 
 
 def _build_session():
-    # Shared requests.Session with retry/backoff for transient errors.
-    # gharchive.org is generally stable, but the pipeline runs unattended on
-    # a schedule and we don't want a single 502 or dropped connection to
-    # mark a perfectly good file as 'failed' in the manifest.
-    # Written: 2026-05-18.
+    # Shared session with retry/backoff for transient 4xx/5xx from gharchive.org.
     session = requests.Session()
     retry = Retry(
         total=5,
@@ -99,12 +95,20 @@ def run_pipeline(start_date, end_date):
 
     log.info(f"Pipeline complete — success: {success} | failed: {failed}")
 
+def _parse_date(value, default):
+    # YYYY-MM-DD env-var override, else default.
+    if not value:
+        return default
+    return datetime.strptime(value, "%Y-%m-%d")
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s"
     )
     log.info("Starting pipeline")
-    start = datetime(2024, 1, 8)
-    end = datetime(2024, 1, 9)
+    # Default window: 2024-01-08 to 2024-01-10 inclusive (72 hourly files).
+    start = _parse_date(os.environ.get("PIPELINE_START_DATE"), datetime(2024, 1, 8))
+    end = _parse_date(os.environ.get("PIPELINE_END_DATE"), datetime(2024, 1, 10))
     run_pipeline(start, end)

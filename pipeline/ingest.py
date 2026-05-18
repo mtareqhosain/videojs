@@ -68,11 +68,8 @@ def clean_payload(payload):
 
 
 def ingest_file(filepath):
-    # Ingest one .json.gz file from GitHub Archive into raw_events.
-    # Idempotency: file-level via the manifest, row-level via ON CONFLICT (id) DO NOTHING.
-    # Per-row failure isolation: each insert runs inside a SAVEPOINT so a single bad
-    # line only rolls back its own statement, not the rest of the in-progress batch.
-    # Written: 2026-05-18.
+    # Ingest one .json.gz file into raw_events.
+    # Idempotency: manifest at file level, ON CONFLICT (id) DO NOTHING at row level.
     filename = os.path.basename(filepath)
 
     if is_already_loaded(filename):
@@ -94,9 +91,7 @@ def ingest_file(filepath):
                 if not line:
                     continue
 
-                # SAVEPOINT scopes any failure to this single row insert.
-                # Without it, conn.rollback() would discard every prior row
-                # since the last commit, which for this loop is the whole file.
+                # SAVEPOINT so one bad row doesn't roll back the whole file.
                 cur.execute("SAVEPOINT row_sp")
                 try:
                     event = json.loads(line)

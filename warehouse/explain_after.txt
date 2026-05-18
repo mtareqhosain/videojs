@@ -1,28 +1,49 @@
-QUERY PLAN        
+Query 3 — AFTER optimisation
+----------------------------
+Change: org_name denormalised onto fact_events (warehouse/schema.sql).
+The query now reads org_name directly from the fact table and no longer
+joins dim_repos.
+
+EXPLAIN (ANALYZE, BUFFERS):
+
+                                                                                                         QUERY PLAN
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=5582.68..5582.73 rows=20 width=51) (actual time=188.134..188.145 rows=20 loops=1)
-   ->  Sort  (cost=5582.68..5583.04 rows=143 width=51) (actual time=188.132..188.134 rows=20 loops=1)
+ Limit  (cost=6084.82..6084.87 rows=20 width=51) (actual time=57.869..57.874 rows=20 loops=1)
+   Buffers: shared hit=4848
+   ->  Sort  (cost=6084.82..6085.18 rows=143 width=51) (actual time=57.864..57.867 rows=20 loops=1)
          Sort Key: (round((((count(*) FILTER (WHERE ((f.pr_action = 'closed'::text) AND f.pr_merged)))::numeric / (NULLIF(count(*) FILTER (WHERE (f.pr_action = 'closed'::text)), 0))::numeric) * '100'::numeric), 2)) DESC
          Sort Method: top-N heapsort  Memory: 27kB
-         ->  GroupAggregate  (cost=5564.90..5578.87 rows=143 width=51) (actual time=182.113..188.012 rows=107 loops=1)
-               Group Key: r.org_name
+         Buffers: shared hit=4848
+         ->  GroupAggregate  (cost=6067.05..6081.02 rows=143 width=51) (actual time=50.470..57.807 rows=107 loops=1)
+               Group Key: f.org_name
                Filter: (count(*) FILTER (WHERE (f.pr_action = 'closed'::text)) > 10)
                Rows Removed by Filter: 9800
-               ->  Sort  (cost=5564.90..5565.98 rows=430 width=19) (actual time=182.060..183.277 rows=33574 loops=1)
-                     Sort Key: r.org_name
+               Buffers: shared hit=4845
+               ->  Sort  (cost=6067.05..6068.12 rows=430 width=19) (actual time=50.406..52.520 rows=33574 loops=1)
+                     Sort Key: f.org_name
                      Sort Method: quicksort  Memory: 3190kB
-                     ->  Nested Loop  (cost=403.24..5546.10 rows=430 width=19) (actual time=4.124..153.177 rows=33574 loops=1)
-                           ->  Nested Loop  (cost=402.82..5352.24 rows=430 width=12) (actual time=4.037..70.870 rows=33574 loops=1)
-                                 ->  Index Scan using dim_event_types_event_type_name_key on dim_event_types et  (cost=0.15..8.17 rows=1 width=4) (actual time=0.154..0.156 rows=1 loops=1)
-                                       Index Cond: (event_type_name = 'PullRequestEvent'::text)
-                                 ->  Bitmap Heap Scan on fact_events f  (cost=402.66..4979.89 rows=36418 width=16) (actual time=3.874..67.210 rows=33574 loops=1)
-                                       Recheck Cond: (event_type_id = et.event_type_id)
-                                       Heap Blocks: exact=4120
-                                       ->  Bitmap Index Scan on idx_fact_event_type  (cost=0.00..393.56 rows=36418 width=0) (actual time=3.060..3.060 rows=33574 loops=1)
-                               Index Cond: (event_type_id = et.event_type_id)
-                           ->  Index Scan using dim_repos_pkey on dim_repos r  (cost=0.42..0.45 rows=1 wid
-th=15) (actual time=0.002..0.002 rows=1 loops=33574)
-                                 Index Cond: (repo_id = f.repo_id)
- Planning Time: 5.836 ms
- Execution Time: 188.382 ms
-(24 rows)
+                     Buffers: shared hit=4845
+                     ->  Nested Loop  (cost=402.82..6048.24 rows=430 width=19) (actual time=1.952..18.210 rows=33574 loops=1)
+                           Buffers: shared hit=4842
+                           ->  Index Scan using dim_event_types_event_type_name_key on dim_event_types et  (cost=0.15..8.17 rows=1 width=4) (actual time=0.010..0.013 rows=1 loops=1)
+                                 Index Cond: (event_type_name = 'PullRequestEvent'::text)
+                                 Buffers: shared hit=2
+                           ->  Bitmap Heap Scan on fact_events f  (cost=402.66..5675.89 rows=36418 width=23) (actual time=1.939..14.154 rows=33574 loops=1)
+                                 Recheck Cond: (event_type_id = et.event_type_id)
+                                 Heap Blocks: exact=4840
+                                 ->  Bitmap Index Scan on idx_fact_event_type  (cost=0.00..393.56 rows=36418 width=0) (actual time=1.475..1.476 rows=33574 loops=1)
+                                       Index Cond: (event_type_id = et.event_type_id)
+                                       Buffers: shared hit=29
+ Planning:
+   Buffers: shared hit=327
+ Planning Time: 0.617 ms
+ Execution Time: 58.159 ms
+(31 rows)
+
+What changed in the plan:
+- The inner Index Scan on dim_repos_pkey is gone.
+- Group Key flipped from r.org_name to f.org_name (no more join).
+- Buffer hits dropped from 139,144 to 4,848 (~29x less I/O).
+- Execution time roughly halved (115.98 ms -> 58.16 ms).
+
+The Sort + GroupAggregate is still there because Postgres can't avoid sorting on org_name to group by it — but it's now sorting rows that already carry the column, instead of doing 33,574 lookups first.

@@ -77,22 +77,30 @@ should now appear in the MCP tools list.
 
 ## Demo Questions
 
-Ask these in Claude Desktop after connecting the MCP server:
+Ask these in Claude Desktop after connecting the MCP server. Each question
+maps to one of the four MCP tools; expected answers were captured against
+the 3-file demo sample (2024-01-08-{0,1,2}.json.gz).
 
 1. **Which repositories had the most activity between January 8-10, 2024?**
-   Expected: Top repos like lu146enza/Project5 with ~9000 events
+   Expected: top result is `lu146enza/Project5` with 9,041 events, followed
+   by `lu146enza/Project3` (9,025), `Project4` (9,021), `Project1` (9,013),
+   `Project8` (9,012).
 
-2. **What was the pull request merge rate for organisations with more than 10 closed PRs?**
-   Expected: List of orgs with merge rates, top ones at 100%
+2. **What was the pull request merge rate for organisations with more than
+   10 closed PRs?** Expected: many orgs at 100% (e.g. `cdktf` with 59
+   closed PRs, `cdklabs` with 36, `coinhall` with 23, all at 100% merge
+   rate), ordered by `merge_rate_pct DESC`.
 
 3. **How many power users were active on 2024-01-08?**
-   Expected: 900 power users
+   Expected: exactly 900 power users (≥5 distinct event types in a day),
+   alongside 16,373 multi-type and 66,293 single-type users.
 
 4. **Show me the top 5 most active repositories by total event count.**
-   Expected: Top 5 repos with event counts
+   Expected: same top 5 as question 1 (because the demo sample only covers
+   2024-01-08-{0,1,2}, "overall" and "Jan 8-10" coincide).
 
 5. **How many distinct event types occurred on January 8th, 2024?**
-   Expected: 15 distinct event types
+   Expected: 15 distinct event types.
 
 
 ## Project Structure
@@ -103,3 +111,19 @@ Ask these in Claude Desktop after connecting the MCP server:
 ├── transform/     # Runs warehouse transformations on startup
 ├── scheduler/     # Cron-based incremental load scheduler
 └── mcp_server/    # FastMCP server exposing warehouse as tools
+
+
+## Database
+
+If you want to poke at the warehouse directly (e.g. with `psql` or any
+GUI client) while `docker compose up` is running:
+
+- Host: `localhost`
+- Port: `5433` (mapped from the container's 5432)
+- Database: `gharchive`
+- User: `postgres`
+- Password: `postgres`
+
+Verification queries for the raw pipeline live in `pipeline/verify.sql`;
+the three analytical queries the brief calls for live in
+`warehouse/queries.sql`.

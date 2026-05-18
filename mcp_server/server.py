@@ -9,14 +9,10 @@ log = logging.getLogger(__name__)
 
 mcp = FastMCP("nextventures-gharchive")
 
-# Hard cap on rows returned from any tool. Prevents accidental large
-# result sets being shoved back into the model context window.
+# Hard cap on rows returned from any tool.
 ROW_LIMIT = 500
 
-# Word-boundary pattern for forbidden SQL statements. Word boundaries are
-# important: a naive substring check would falsely flag identifiers like
-# "created_at" because they contain the substring "CREATE".
-# Written: 2026-05-18.
+# Reject write/DDL keywords; word-boundary so identifiers like "created_at" don't match.
 _FORBIDDEN_SQL = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|CREATE|GRANT|REVOKE|COPY|VACUUM|MERGE)\b",
     re.IGNORECASE,
@@ -34,11 +30,7 @@ def get_connection():
 
 
 def _fetch(sql: str, params: tuple = ()) -> list[dict]:
-    # Centralised read helper: opens a connection, runs the parameterised
-    # query inside a READ ONLY transaction with a statement timeout, and
-    # always closes the cursor/connection on the way out.
-    # Returns column-name keyed dicts so MCP tool responses are self-describing.
-    # Written: 2026-05-18.
+    # Run sql inside a READ ONLY transaction with a statement timeout; return list of dicts.
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -150,18 +142,9 @@ def user_contribution_tiers(date: str) -> list:
 
 @mcp.tool()
 def run_select_query(sql: str) -> list:
-    """Runs a free-form SELECT query against the marts. Max 500 rows.
-
-    Defence in depth:
-      1. The SQL must begin with the SELECT keyword (or WITH for CTEs).
-      2. Word-boundary regex rejects any write/DDL keyword (INSERT, UPDATE,
-         DROP, etc.). Word boundaries are essential so legitimate identifiers
-         like "created_at" aren't falsely rejected for containing "CREATE".
-      3. The query is wrapped as a sub-select with LIMIT 500.
-      4. It executes inside a READ ONLY transaction with a statement timeout,
-         so the database itself rejects writes even if the textual guards
-         are somehow bypassed.
-    """
+    """Runs a free-form SELECT (or WITH...SELECT) query against the marts.
+    Capped at 500 rows. Write/DDL statements are rejected and the query
+    runs inside a READ ONLY transaction with a statement timeout."""
     sql = (sql or "").strip().rstrip(";")
     if not sql:
         raise ValueError("Empty SQL.")
@@ -181,18 +164,11 @@ def run_select_query(sql: str) -> list:
     try:
         return _fetch(safe_sql)
     except psycopg2.Error as e:
-        # Surface DB errors as clean tool errors instead of crashing the server.
         raise ValueError(f"Query failed: {e.pgerror or str(e)}") from e
 
 
 if __name__ == "__main__":
-    # Transport selection.
-    # - "stdio" (default): launched as a child process by Claude Desktop via
-    #   the claude_desktop_config.json snippet in the README.
-    # - "streamable-http": exposes the server over HTTP on port 8000 so the
-    #   container started by docker-compose is actually reachable. This is
-    #   what runs inside the mcp_server container.
-    # Choose via MCP_TRANSPORT; default to stdio for local Claude Desktop use.
+    # MCP_TRANSPORT: "stdio" for Claude Desktop, "streamable-http" inside Docker.
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
     if transport == "streamable-http":
         host = os.environ.get("MCP_HOST", "0.0.0.0")

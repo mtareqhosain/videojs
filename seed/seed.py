@@ -21,9 +21,7 @@ DOWNLOAD_DIR = "/tmp/gharchive"
 
 
 def _build_session():
-    # Same retry posture as pipeline/runner.py so a transient 5xx during
-    # docker-compose up doesn't fail the seed step.
-    # Written: 2026-05-18.
+    # Same retry/backoff posture as pipeline/runner.py.
     session = requests.Session()
     retry = Retry(
         total=5,

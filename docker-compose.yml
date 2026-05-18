@@ -59,5 +59,19 @@ services:
       seed:
         condition: service_completed_successfully
 
+  mcp_server:
+    build: ./mcp_server
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: gharchive
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    depends_on:
+      transform:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+
 volumes:
   pgdata:

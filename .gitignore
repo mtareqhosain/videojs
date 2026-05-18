@@ -3,7 +3,6 @@ __pycache__/
 *$py.class
 
 .venv/
-mcp_server/.venv/
 
 .DS_Store
 .idea/

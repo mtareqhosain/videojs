@@ -17,20 +17,19 @@ This will automatically:
 
 ## Claude Desktop Integration
 
-Claude Desktop launches the MCP server as a host-side Python process over
-stdio. The Docker container is only used for Postgres + pipelines, so the
-host needs its own Python with the server's dependencies installed.
+The `mcp_server` container already runs FastMCP in `streamable-http` mode and
+publishes port `8000` on the host (see `docker-compose.yml`). Claude Desktop
+connects to it over `http://localhost:8000/mcp/` — no host Python or venv
+needed.
 
-### 1. Install the server's dependencies into a local venv
-
-From the repo root:
+### 1. Make sure the stack is running
 
 ```bash
-python3 -m venv mcp_server/.venv
-mcp_server/.venv/bin/pip install -r mcp_server/requirements.txt
+docker compose up --build
 ```
 
-This keeps `fastmcp` and `psycopg2-binary` isolated from your system Python.
+Leave it running while you use Claude Desktop. If the container is stopped,
+the tools will return connection errors.
 
 ### 2. Add this to your `claude_desktop_config.json`
 
@@ -41,32 +40,39 @@ The config file lives at
 {
   "mcpServers": {
     "nextventures-assessment": {
-      "command": "/absolute/path/to/mcp_server/.venv/bin/python",
-      "args": ["/absolute/path/to/mcp_server/server.py"],
-      "env": {
-        "DB_HOST": "localhost",
-        "DB_PORT": "5433",
-        "DB_NAME": "gharchive",
-        "DB_USER": "postgres",
-        "DB_PASSWORD": "postgres"
-      }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8000/mcp/"]
     }
   }
 }
 ```
 
-Replace `/absolute/path/to/` with your actual repo path. The `command` must
-be an absolute path: Claude Desktop spawns subprocesses with a minimal
-`PATH` and will fail with `Failed to spawn process: No such file or directory`
-if you just use `"python"`.
+This uses `mcp-remote` as a tiny stdio→HTTP bridge so the config works on
+every Claude Desktop version. `npx` will pull the package on first run; no
+manual install required.
+
+> If your Claude Desktop is new enough to support HTTP MCP servers natively,
+> you can use this shorter form instead:
+>
+> ```json
+> {
+>   "mcpServers": {
+>     "nextventures-assessment": {
+>       "type": "http",
+>       "url": "http://localhost:8000/mcp/"
+>     }
+>   }
+> }
+> ```
+
+The database credentials are already baked into the container's environment
+via `docker-compose.yml`, so no `env` block is needed in `claude_desktop_config.json`.
 
 ### 3. Restart Claude Desktop
 
 Fully quit the app (⌘Q on macOS — closing the window is not enough) and
-re-open it so it re-reads the config.
-
-Make sure `docker compose up` is still running while you query, since the
-MCP server talks to Postgres on `localhost:5433`.
+re-open it so it re-reads the config. The `nextventures-assessment` server
+should now appear in the MCP tools list.
 
 
 ## Demo Questions

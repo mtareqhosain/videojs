@@ -103,12 +103,3 @@ Ask these in Claude Desktop after connecting the MCP server:
 ├── transform/     # Runs warehouse transformations on startup
 ├── scheduler/     # Cron-based incremental load scheduler
 └── mcp_server/    # FastMCP server exposing warehouse as tools
-
-
-## Database
-
-- Host: localhost
-- Port: 5433
-- Database: gharchive
-- User: postgres
-- Password: postgres

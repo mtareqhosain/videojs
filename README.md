@@ -5,6 +5,7 @@
 ```bash
 git clone <your-repo-url>
 cd next-ventures-assessment
+cp .env.example .env        # then edit `.env` and set real values
 docker compose up --build
 ```
 
@@ -14,6 +15,19 @@ This will automatically:
 3. Build the star schema and run transformations
 4. Start the incremental scheduler
 5. Start the MCP server
+
+### Configuration & secrets
+
+All credentials and tunable settings live in a local `.env` file at the repo
+root. `docker-compose.yml` reads it automatically via `${VAR}` substitution, so
+no secrets are baked into the compose file.
+
+- `.env.example` — committed template; safe to read.
+- `.env` — your local copy with real values; **gitignored, never commit it**.
+
+For production, don't ship a `.env` at all — inject the same variables from a
+secret manager (AWS Secrets Manager, Vault, GitHub Actions secrets, etc.) or
+use Docker secrets (`POSTGRES_PASSWORD_FILE: /run/secrets/...`).
 
 ## Claude Desktop Integration
 
@@ -65,8 +79,9 @@ manual install required.
 > }
 > ```
 
-The database credentials are already baked into the container's environment
-via `docker-compose.yml`, so no `env` block is needed in `claude_desktop_config.json`.
+The database credentials are injected into the containers from your local
+`.env` file at compose time, so no `env` block is needed in
+`claude_desktop_config.json`.
 
 ### 3. Restart Claude Desktop
 

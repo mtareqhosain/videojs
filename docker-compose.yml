@@ -2,29 +2,29 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: gharchive
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT}:5432"
   
   seed:
     build: ./seed
     volumes:
       - ./pipeline:/app/pipeline
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: gharchive
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,12 +34,12 @@ services:
     volumes:
       - ./pipeline:/app/pipeline
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: gharchive
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      PIPELINE_WORKERS: 4
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PIPELINE_WORKERS: ${PIPELINE_WORKERS}
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -50,11 +50,11 @@ services:
       - ./warehouse/transform.sql:/app/transform.sql
       - ./warehouse/schema.sql:/app/schema.sql
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: gharchive
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     depends_on:
       seed:
         condition: service_completed_successfully
@@ -62,22 +62,22 @@ services:
   mcp_server:
     build: ./mcp_server
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: gharchive
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       # Run the in-container MCP server over HTTP so the published port is
       # actually reachable. The README's Claude Desktop integration still
       # uses stdio, which launches a separate host-local Python process.
-      MCP_TRANSPORT: streamable-http
-      MCP_HOST: 0.0.0.0
-      MCP_PORT: 8000
+      MCP_TRANSPORT: ${MCP_TRANSPORT}
+      MCP_HOST: ${MCP_HOST}
+      MCP_PORT: ${MCP_PORT}
     depends_on:
       transform:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "${MCP_PORT}:8000"
 
 volumes:
   pgdata:

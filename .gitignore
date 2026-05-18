@@ -7,3 +7,9 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Environment files — never commit real secrets.
+# .env.example is the committed template; everything else is local-only.
+.env
+.env.*
+!.env.example

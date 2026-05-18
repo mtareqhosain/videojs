@@ -120,24 +120,36 @@ the 3-file demo sample (2024-01-08-{0,1,2}.json.gz).
 
 ## Project Structure
 
+```text
+.
 ├── seed/          # Downloads sample files and bootstraps data
 ├── pipeline/      # ETL pipeline with incremental loads
 ├── warehouse/     # Star schema DDL, transforms, and queries
 ├── transform/     # Runs warehouse transformations on startup
 ├── scheduler/     # Cron-based incremental load scheduler
 └── mcp_server/    # FastMCP server exposing warehouse as tools
+```
 
 
 ## Database
 
 If you want to poke at the warehouse directly (e.g. with `psql` or any
-GUI client) while `docker compose up` is running:
+GUI client) while `docker compose up` is running, connect using the values
+from your local `.env` file:
 
-- Host: `localhost`
-- Port: `5433` (mapped from the container's 5432)
-- Database: `gharchive`
-- User: `postgres`
-- Password: `postgres`
+- **Host:** `localhost`
+- **Port:** `${POSTGRES_HOST_PORT}` (defaults to `5433`, mapped to the container's `5432`)
+- **Database:** `${POSTGRES_DB}`
+- **User:** `${POSTGRES_USER}`
+- **Password:** `${POSTGRES_PASSWORD}`
+
+See `.env.example` for the variable list. Quick one-liner if you have `psql`
+installed locally and your shell has loaded the `.env`:
+
+```bash
+set -a && source .env && set +a
+psql -h localhost -p "$POSTGRES_HOST_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
 
 Verification queries for the raw pipeline live in `pipeline/verify.sql`;
 the three analytical queries the brief calls for live in

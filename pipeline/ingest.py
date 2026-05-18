@@ -5,7 +5,6 @@ import os
 
 from datetime import datetime, timezone
 from pipeline.db import get_connection
-import json
 
 from psycopg2.extras import Json
 
@@ -69,6 +68,11 @@ def clean_payload(payload):
 
 
 def ingest_file(filepath):
+    # Ingest one .json.gz file from GitHub Archive into raw_events.
+    # Idempotency: file-level via the manifest, row-level via ON CONFLICT (id) DO NOTHING.
+    # Per-row failure isolation: each insert runs inside a SAVEPOINT so a single bad
+    # line only rolls back its own statement, not the rest of the in-progress batch.
+    # Written: 2026-05-18.
     filename = os.path.basename(filepath)
 
     if is_already_loaded(filename):
@@ -81,6 +85,7 @@ def ingest_file(filepath):
     conn = get_connection()
     cur = conn.cursor()
     row_count = 0
+    skipped_count = 0
 
     try:
         with gzip.open(filepath, 'rt', encoding='utf-8') as f:
@@ -89,6 +94,10 @@ def ingest_file(filepath):
                 if not line:
                     continue
 
+                # SAVEPOINT scopes any failure to this single row insert.
+                # Without it, conn.rollback() would discard every prior row
+                # since the last commit, which for this loop is the whole file.
+                cur.execute("SAVEPOINT row_sp")
                 try:
                     event = json.loads(line)
                     cur.execute("""
@@ -105,15 +114,20 @@ def ingest_file(filepath):
                         clean_payload(event.get("payload", {})),
                         filename
                     ))
+                    cur.execute("RELEASE SAVEPOINT row_sp")
                     row_count += 1
                 except Exception as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT row_sp")
+                    skipped_count += 1
                     log.warning(f"Skipping row in {filename}: {e}")
-                    conn.rollback()
                     continue
         
         conn.commit()
         mark_manifest(filename, "completed", row_count=row_count)
-        log.info(f"Completed {filename} - {row_count} rows ingested")
+        log.info(
+            f"Completed {filename} - {row_count} rows ingested, "
+            f"{skipped_count} rows skipped"
+        )
     
     except Exception as e:
         conn.rollback()

@@ -67,6 +67,12 @@ services:
       DB_NAME: gharchive
       DB_USER: postgres
       DB_PASSWORD: postgres
+      # Run the in-container MCP server over HTTP so the published port is
+      # actually reachable. The README's Claude Desktop integration still
+      # uses stdio, which launches a separate host-local Python process.
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
     depends_on:
       transform:
         condition: service_completed_successfully

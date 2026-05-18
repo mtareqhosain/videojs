@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from pipeline.db import create_tables
 from pipeline.incremental import get_pending_files
@@ -17,6 +19,29 @@ DOWNLOAD_DIR = "/tmp/gharchive"
 MAX_WORKERS = int(os.environ.get("PIPELINE_WORKERS", 4))
 
 
+def _build_session():
+    # Shared requests.Session with retry/backoff for transient errors.
+    # gharchive.org is generally stable, but the pipeline runs unattended on
+    # a schedule and we don't want a single 502 or dropped connection to
+    # mark a perfectly good file as 'failed' in the manifest.
+    # Written: 2026-05-18.
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+_session = _build_session()
+
+
 def download_file(filename):
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     url = BASE_URL + filename
@@ -27,11 +52,12 @@ def download_file(filename):
         return destination
 
     log.info(f"Downloading {filename} from {url} to {destination}")
-    with requests.get(url, stream=True) as r:
+    with _session.get(url, stream=True, timeout=(10, 60)) as r:
         r.raise_for_status()
         with open(destination, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
 
     log.info(f"Saved {filename} to {destination}")
     return destination

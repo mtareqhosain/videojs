@@ -8,7 +8,7 @@ def generate_filenames(start_date, end_date):
     """Generate filenames for a given date range"""
     filenames = []
     current = start_date
-    while current<= end_date:
+    while current <= end_date:
         for hour in range(24):
             filename = f"{current.strftime('%Y-%m-%d')}-{hour}.json.gz"
             filenames.append(filename)

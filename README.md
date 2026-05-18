@@ -17,13 +17,31 @@ This will automatically:
 
 ## Claude Desktop Integration
 
-Add this to your `claude_desktop_config.json`:
+Claude Desktop launches the MCP server as a host-side Python process over
+stdio. The Docker container is only used for Postgres + pipelines, so the
+host needs its own Python with the server's dependencies installed.
+
+### 1. Install the server's dependencies into a local venv
+
+From the repo root:
+
+```bash
+python3 -m venv mcp_server/.venv
+mcp_server/.venv/bin/pip install -r mcp_server/requirements.txt
+```
+
+This keeps `fastmcp` and `psycopg2-binary` isolated from your system Python.
+
+### 2. Add this to your `claude_desktop_config.json`
+
+The config file lives at
+`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS.
 
 ```json
 {
   "mcpServers": {
     "nextventures-assessment": {
-      "command": "python",
+      "command": "/absolute/path/to/mcp_server/.venv/bin/python",
       "args": ["/absolute/path/to/mcp_server/server.py"],
       "env": {
         "DB_HOST": "localhost",
@@ -37,7 +55,18 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
-Replace `/absolute/path/to/` with your actual repo path.
+Replace `/absolute/path/to/` with your actual repo path. The `command` must
+be an absolute path: Claude Desktop spawns subprocesses with a minimal
+`PATH` and will fail with `Failed to spawn process: No such file or directory`
+if you just use `"python"`.
+
+### 3. Restart Claude Desktop
+
+Fully quit the app (⌘Q on macOS — closing the window is not enough) and
+re-open it so it re-reads the config.
+
+Make sure `docker compose up` is still running while you query, since the
+MCP server talks to Postgres on `localhost:5433`.
 
 
 ## Demo Questions

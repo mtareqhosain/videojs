@@ -1,6 +1,8 @@
 import os
 import sys
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,6 +19,28 @@ SAMPLE_FILES = [
 BASE_URL = "https://data.gharchive.org/"
 DOWNLOAD_DIR = "/tmp/gharchive"
 
+
+def _build_session():
+    # Same retry posture as pipeline/runner.py so a transient 5xx during
+    # docker-compose up doesn't fail the seed step.
+    # Written: 2026-05-18.
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+_session = _build_session()
+
+
 def download_file(file_name):
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     url = BASE_URL + file_name
@@ -27,11 +51,12 @@ def download_file(file_name):
         return destination
 
     log.info(f"Downloading {file_name} from {url} to {destination}")
-    with requests.get(url, stream=True) as r:
+    with _session.get(url, stream=True, timeout=(10, 60)) as r:
         r.raise_for_status()
         with open(destination, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
 
     log.info(f"Saved {file_name} to {destination}")
     return destination

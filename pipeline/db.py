@@ -5,8 +5,6 @@ import time
 
 log = logging.getLogger(__name__)
 
-# Database connection
-import time
 
 def get_connection(retries=3, delay=2):
     for attempt in range(retries):
